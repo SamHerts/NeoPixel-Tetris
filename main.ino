@@ -23,7 +23,36 @@ const uint16_t tetrisColors[] = {
   matrix.Color(255, 0, 0)      // Z - Red
 };
 
-// Shape Definitions (4x4 grid with rotation)
+const uint8_t alphabet[26][10] = {
+  {0x1E, 0x21, 0x21, 0x21, 0x21, 0x3F, 0x21, 0x21, 0x21, 0x21}, // A
+  {0x3E, 0x21, 0x21, 0x21, 0x3E, 0x21, 0x21, 0x21, 0x21, 0x3E}, // B
+  {0x1F, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x1F}, // C
+  {0x3C, 0x22, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x22, 0x3C}, // D
+  {0x3F, 0x20, 0x20, 0x20, 0x3E, 0x20, 0x20, 0x20, 0x20, 0x3F}, // E
+  {0x3F, 0x20, 0x20, 0x20, 0x3C, 0x20, 0x20, 0x20, 0x20, 0x20}, // F
+  {0x1F, 0x20, 0x20, 0x20, 0x20, 0x27, 0x21, 0x21, 0x21, 0x1F}, // G
+  {0x21, 0x21, 0x21, 0x21, 0x3F, 0x3F, 0x21, 0x21, 0x21, 0x21}, // H
+  {0x1E, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x1E}, // I
+  {0x0F, 0x02, 0x02, 0x02, 0x02, 0x02, 0x22, 0x22, 0x22, 0x1C}, // J
+  {0x22, 0x24, 0x28, 0x30, 0x30, 0x30, 0x28, 0x24, 0x22, 0x21}, // K
+  {0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x3F}, // L
+  {0x21, 0x33, 0x33, 0x2D, 0x2D, 0x21, 0x21, 0x21, 0x21, 0x21}, // M
+  {0x21, 0x31, 0x31, 0x29, 0x29, 0x25, 0x25, 0x23, 0x23, 0x21}, // N
+  {0x1E, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x1E}, // O
+  {0x3E, 0x21, 0x21, 0x21, 0x21, 0x3E, 0x20, 0x20, 0x20, 0x20}, // P
+  {0x1E, 0x21, 0x21, 0x21, 0x21, 0x21, 0x25, 0x23, 0x21, 0x1F}, // Q
+  {0x3E, 0x21, 0x21, 0x21, 0x21, 0x3E, 0x28, 0x24, 0x22, 0x21}, // R
+  {0x1F, 0x20, 0x20, 0x20, 0x1E, 0x01, 0x01, 0x01, 0x01, 0x3E}, // S
+  {0x3F, 0x3F, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C}, // T
+  {0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x1E}, // U
+  {0x21, 0x21, 0x21, 0x21, 0x21, 0x12, 0x12, 0x0C, 0x0C, 0x0C}, // V
+  {0x21, 0x21, 0x21, 0x21, 0x21, 0x2D, 0x2D, 0x33, 0x33, 0x21}, // W
+  {0x21, 0x21, 0x12, 0x0C, 0x0C, 0x0C, 0x0C, 0x12, 0x21, 0x21}, // X
+  {0x21, 0x21, 0x12, 0x12, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C}, // Y
+  {0x3F, 0x3F, 0x02, 0x04, 0x04, 0x08, 0x08, 0x10, 0x3F, 0x3F}  // Z
+};
+// Shape Definitions (4x4 grids)
+// 1 = block, 0 = empty
 const uint16_t tetrominoes[7][4] = {
   // I (Cyan)
   {0x0F00, 0x2222, 0x00F0, 0x4444},
@@ -42,7 +71,7 @@ const uint16_t tetrominoes[7][4] = {
 };
 
 // Game State Variables
-int board[WIDTH][HEIGHT];
+uint8_t board[WIDTH][HEIGHT]; // Stores locked blocks (0 = empty, 1-7 = color index + 1)
 int currentPieceType = -1;
 int currentRotation = 0;
 int px = 0;
@@ -50,22 +79,29 @@ int py = -4;
 
 void setup() {
   matrix.begin();
-  matrix.setBrightness(10);
+  matrix.setBrightness(8);
   randomSeed(analogRead(A1)); // Generate random seed from unconnected pin
   resetBoard();
+  matrix.fillScreen(0); // Clear buffer
+
+  // Intro Sequence: T-E-T-R-I-S
+  int intro[] = {19, 4, 19, 17, 8, 18}; 
+  scrollMessage(intro, 6);
 }
 
 void loop() {
-  matrix.fillScreen(0); 
+  matrix.fillScreen(0); // Clear buffer
 
+  // Run the Tetris Physics
   updateTetris();
 
-  drawBoard();
-  drawCurrentPiece();
-
+  // Draw the result
+  drawScreen();
   matrix.show();
-  delay(150);
+  delay(200); // Speed of the fall
 }
+
+// --- CORE FUNCTIONS ---
 
 void updateTetris() {
   // 1. If no piece exists, spawn one
@@ -74,12 +110,13 @@ void updateTetris() {
     
     // Immediate Game Over check: if the new piece collides immediately, reset board
     if (checkCollision(px, py, currentRotation)) {
-      delay(1000);
+      drawFail();
       resetBoard();
     }
     return;
   }
 
+  // 2. Try to move down
   if (!checkCollision(px, py + 1, currentRotation)) {
     py++; // Move down
   } else {
@@ -128,15 +165,14 @@ void spawnPiece() {
   int bestScore = -30000;
   int bestX = 0;
   int bestRot = 0;
-  int r = 0;
 
-  // Rotations loop
+  // 1. Loop through all 4 rotations
   for (int r = 0; r < 4; r++) {
-    
-    // X position (from -2 to WIDTH)
+    // 2. Loop through all X positions (from -2 to WIDTH)
     for (int x = -2; x < WIDTH; x++) {
-      int y = -2; // Start high
       
+      // Calculate where the piece would land (Hard Drop)
+      int y = 0;
       // If we can't even spawn here, skip it
       if (checkCollision(x, y, r)) continue;
 
@@ -145,6 +181,7 @@ void spawnPiece() {
         y++;
       }
 
+      // 3. Evaluate this final position
       int score = evaluateBoard(x, y, r);
 
       if (score > bestScore) {
@@ -157,18 +194,14 @@ void spawnPiece() {
 
   // Apply the best move
   px = bestX;
-  py = -2; // Start at top
+  py = -1; // Start at top
   currentRotation = bestRot;
 }
 
 int evaluateBoard(int pieceX, int pieceY, int rot) {
   // Create a temporary board simulation
-  int tempBoard[WIDTH][HEIGHT];
-  for(int x=0; x<WIDTH; x++) {
-    for(int y=0; y<HEIGHT; y++) {
-      tempBoard[x][y] = board[x][y];
-    }
-  }
+  uint8_t tempBoard[WIDTH][HEIGHT];
+  memcpy(tempBoard, board, sizeof(board));
 
   // Add the piece to the temp board
   for (int y = 0; y < 4; y++) {
@@ -221,7 +254,7 @@ int evaluateBoard(int pieceX, int pieceY, int rot) {
 
   // Final Score Formula (Tunable weights)
   // We want to MAXIMIZE lines, MINIMIZE height, holes, bumpiness
-  return (completeLines * 50) - (aggregateHeight * 3) - (holes * 20) - (bumpiness * 2);
+  return (completeLines * 70) - (aggregateHeight * 5) - (holes * 30) - (bumpiness * 8);
 }
 
 bool getPixel(int type, int rot, int x, int y) {
@@ -231,6 +264,96 @@ bool getPixel(int type, int rot, int x, int y) {
 }
 
 // --- DRAWING FUNCTIONS ---
+void drawScreen(){
+  drawBoard();
+  drawCurrentPiece();
+}
+
+// Scrolls a sequence of letters continuously
+void scrollMessage(int* letters, int count) {
+  int letterHeight = 10;
+  int gap = 2;
+  static int offset = random(0,count);
+  uint16_t colors[count];
+  for (int i = 0; i < count; i++)
+  {
+    colors[i] = tetrisColors[(i + offset) % count];
+  }
+  offset > count ? offset = 0: offset += 1;
+  
+  int totalChainHeight = count * (letterHeight + gap);
+
+  // Start: Top of first letter is at the bottom of the screen (HEIGHT)
+  // End:  Top of first letter is far enough up that the last letter is off screen
+  for (int globalY = HEIGHT; globalY > -totalChainHeight; globalY--) {
+    matrix.fillScreen(0);
+
+    for (int i = 0; i < count; i++) {
+      uint16_t color = tetrisColors[random(0, 7)];
+      // global position + its place in the line
+      int letterY = globalY + (i * (letterHeight + gap));
+
+      drawLetterAt(letters[i], letterY, colors[i]);
+    }
+    
+    matrix.show();
+    delay(60);
+  }
+}
+
+// Draw a letter at a specific Y coordinate
+void drawLetterAt(int letterIndex, int yPos, uint16_t color) {
+  if (letterIndex < 0 || letterIndex > 25) return;
+
+  for (int row = 0; row < 10; row++) {
+    int screenY = yPos + row;
+
+    if (screenY >= 0 && screenY < HEIGHT) {
+      uint8_t rowData = alphabet[letterIndex][row];
+      
+      for (int x = 0; x < WIDTH; x++) {
+        bool pixelOn = (rowData >> (5 - x)) & 1;
+        
+        if (pixelOn) {
+          matrix.drawPixel(x, screenY, color); 
+        }
+      }
+    }
+  }
+}
+
+void scrollLetter(int letterIndex, uint16_t color) {
+  // Clamp index to prevent crashes
+  if(letterIndex < 0 || letterIndex > 25) return;
+
+  // Start with offset at HEIGHT (just below screen)
+  // End with offset at -10 (just above screen, since letter height is 10)
+  for (int offset = HEIGHT; offset >= -10; offset--) {
+    matrix.fillScreen(0);
+
+    // Loop through the 10 rows of the letter data
+    for (int row = 0; row < 10; row++) {
+      int screenY = row + offset;
+
+      // Optimization: Only draw pixels that are currently visible on screen
+      if (screenY >= 0 && screenY < HEIGHT) {
+        uint8_t rowData = alphabet[letterIndex][row];
+        
+        for (int x = 0; x < WIDTH; x++) {
+          // Check the bit for the specific pixel
+          bool pixelOn = (rowData >> (5 - x)) & 1;
+          
+          if (pixelOn) {
+             // Draw pixel with random Tetris color (shimmer effect)
+             matrix.drawPixel(x, screenY, color); 
+          }
+        }
+      }
+    }
+    matrix.show();
+    delay(60);
+  }
+}
 
 void drawBoard() {
   for (int x = 0; x < WIDTH; x++) {
@@ -239,6 +362,21 @@ void drawBoard() {
         matrix.drawPixel(x, y, tetrisColors[board[x][y] - 1]);
       }
     }
+  }
+}
+
+void drawFail(){
+  for (int i = 0; i < 3; i++){
+    matrix.fillScreen(0);
+    matrix.drawFastVLine(0,0, HEIGHT, matrix.Color(255, 0, 0));
+    matrix.drawFastVLine(WIDTH - 1, 0, HEIGHT, matrix.Color(255, 0, 0));
+    matrix.show();
+    delay(100);
+    drawScreen();
+    matrix.drawFastVLine(0,0, HEIGHT, matrix.Color(255, 0, 0));
+    matrix.drawFastVLine(WIDTH - 1, 0, HEIGHT, matrix.Color(255, 0, 0));
+    matrix.show();
+    delay(100);
   }
 }
 
@@ -266,20 +404,32 @@ void clearLines() {
       if (board[x][y] == 0) full = false;
     }
     if (full) {
+      // Flash effect
+      for (int i = 0; i < 2; i++){
+        matrix.fillScreen(0);
+        drawScreen();
+        matrix.drawFastHLine(0, y, WIDTH, matrix.Color(255, 255, 255));
+        matrix.show();
+        delay(50);
+        matrix.drawFastHLine(0, y, WIDTH, matrix.Color(0, 0, 0));
+        matrix.show();
+        delay(50);
+      }
+      
       // Move everything down
       for (int ny = y; ny > 0; ny--) {
         for (int nx = 0; nx < WIDTH; nx++) {
           board[nx][ny] = board[nx][ny - 1];
         }
       }
-      for (int nx = 0; nx < WIDTH; nx++) board[nx][0] = 0;
-      
-      // Flash effect
-      matrix.drawFastHLine(0, y, WIDTH, matrix.Color(255, 255, 255));
-      matrix.show();
-      delay(50);
-      
+      for (int nx = 0; nx < WIDTH; nx++) {
+        board[nx][0] = 0;
+      };
+
       y++; 
+      matrix.fillScreen(0);
+      drawScreen();
+      matrix.show();
     }
   }
 }
